@@ -501,6 +501,37 @@ function parseArxiv(payload) {
   });
 }
 
+async function fetchArxivAtom(query) {
+  const endpoint = new URL("https://export.arxiv.org/api/query");
+  Object.entries(query).forEach(([key, value]) => endpoint.searchParams.set(key, String(value)));
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25000);
+  try {
+    const response = await fetch(endpoint, {
+      headers: {
+        Accept: "application/atom+xml, application/xml;q=0.9, text/xml;q=0.8",
+        "User-Agent": "SignalAtlas/1.0 (research discovery workspace)",
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`arXiv API request failed (${response.status} ${response.statusText}).`);
+    return await response.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function arxivPapers(toolId, toolArgs, apiQuery) {
+  try {
+    return { payload: await executeTool(toolId, toolArgs), source: "connected-tool" };
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : "";
+    if (!message.includes("406 Not Acceptable")) throw cause;
+    return { payload: await fetchArxivAtom(apiQuery), source: "official-api-fallback" };
+  }
+}
+
 app.get("/api/arxiv/papers", async (req, res) => {
   const query = String(req.query.q || "").trim().slice(0, 300);
   const category = String(req.query.category || "").trim().replace(/[^a-zA-Z0-9.-]/g, "").slice(0, 40);
@@ -508,13 +539,15 @@ app.get("/api/arxiv/papers", async (req, res) => {
   const sort = ["relevance", "lastUpdatedDate", "submittedDate"].includes(req.query.sort) ? req.query.sort : "relevance";
   if (mode === "search" && query.length < 2) return res.status(400).json({ error: "Enter at least two characters to search arXiv." });
   try {
-    const payload = mode === "daily"
-      ? await executeTool(TOOL_IDS.arxivDaily, { query: { search_query: `cat:${category || "cs.AI"}`, max_results: 16, sortBy: "submittedDate", sortOrder: "descending" } })
-      : await executeTool(TOOL_IDS.arxivSearch, { query: { search_query: `${query}${category ? ` AND cat:${category}` : ""}`, max_results: 20, sortBy: sort, sortOrder: "descending", start: 0 } });
-    res.json({ query, category, mode, papers: parseArxiv(payload) });
+    const apiQuery = mode === "daily"
+      ? { search_query: `cat:${category || "cs.AI"}`, max_results: 16, sortBy: "submittedDate", sortOrder: "descending", start: 0 }
+      : { search_query: `${query}${category ? ` AND cat:${category}` : ""}`, max_results: 20, sortBy: sort, sortOrder: "descending", start: 0 };
+    const toolId = mode === "daily" ? TOOL_IDS.arxivDaily : TOOL_IDS.arxivSearch;
+    const { payload, source } = await arxivPapers(toolId, { query: apiQuery }, apiQuery);
+    res.json({ query, category, mode, source, papers: parseArxiv(payload) });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "arXiv did not return papers.";
-    res.status(502).json({ error: message.includes("406 Not Acceptable") ? "The connected arXiv service is temporarily refusing catalog requests (406). Please retry shortly." : message });
+    res.status(502).json({ error: message });
   }
 });
 
