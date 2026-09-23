@@ -13,6 +13,11 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
+import CalendarPage from "./CalendarPage";
+import DomainPage from "./DomainPage";
+import LinearPage from "./LinearPage";
+import YoutubePage from "./YoutubePage";
+import GmailPage from "./GmailPage";
 
 type Source = { id: string; title: string; url: string; domain: string; excerpt: string; position: number; category: string };
 type Video = { id: string; title: string; channel: string; publishedAt: string; description: string; thumbnail: string; url: string };
@@ -27,6 +32,11 @@ function formatDate(date: string) {
 }
 
 function App() {
+  const isCalendar = window.location.pathname.startsWith("/calendar");
+  const isDomains = window.location.pathname.startsWith("/domains");
+  const isLinear = window.location.pathname.startsWith("/linear");
+  const isYoutube = window.location.pathname.startsWith("/youtube");
+  const isGmail = window.location.pathname.startsWith("/gmail");
   const [query, setQuery] = useState("");
   const [atlas, setAtlas] = useState<Atlas | null>(null);
   const [loading, setLoading] = useState(false);
@@ -58,18 +68,28 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isYoutube ? "app-shell--youtube" : ""}`}>
       <header className="topbar">
         <a className="brand" href="#top" aria-label="Signal Atlas home">
           <span className="brand-mark"><Compass size={19} strokeWidth={1.8} /></span>
-          <span>Signal Atlas</span>
+          <span>{isYoutube ? "Signal/Room" : "Signal Atlas"}</span>
         </a>
+        <nav className="product-nav" aria-label="Product">
+          <a className={!isCalendar && !isDomains && !isLinear && !isYoutube && !isGmail ? "active" : ""} href="/">Research</a>
+          <a className={isYoutube ? "active" : ""} href="/youtube">YouTube</a>
+          <a className={isGmail ? "active" : ""} href="/gmail">Gmail</a>
+          <a className={isCalendar ? "active" : ""} href="/calendar">Calendar</a>
+          <a className={isDomains ? "active" : ""} href="/domains">Domains</a>
+          <a className={isLinear ? "active" : ""} href="/linear">Linear</a>
+        </nav>
         <div className="topbar-meta">
           <span className="live-dot" />
-          <span>Firecrawl + YouTube</span>
+          <span>{isYoutube ? "Live YouTube connector" : isGmail ? "Live Gmail" : isCalendar ? "Google Calendar" : isDomains ? "Find a Domain" : isLinear ? "Linear MCP" : "Firecrawl + YouTube"}</span>
           <span className="edition">Field edition / 01</span>
         </div>
       </header>
+
+      {isYoutube ? <YoutubePage /> : isGmail ? <GmailPage /> : isCalendar ? <CalendarPage /> : isDomains ? <DomainPage /> : isLinear ? <LinearPage /> : <>
 
       <main id="top">
         <section className={`hero ${atlas ? "hero--compact" : ""}`}>
@@ -158,6 +178,8 @@ function App() {
           )}
         </AnimatePresence>
       </main>
+
+      </>}
 
       <footer><span>Signal Atlas</span><span>Evidence has shape. Attention has velocity.</span><span>Built on connected tools</span></footer>
     </div>
