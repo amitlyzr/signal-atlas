@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, CalendarClock, CircleAlert, ExternalLink, FolderKanban, GripVertical, Plus, RefreshCw, Signal, X } from "lucide-react";
+import { cachedRequest, cacheTime, queryClient, refreshRequest, requestJson } from "./query";
 
 type Status = { id: string; name: string; type: string };
 type Team = { id: string; name: string; key?: string };
@@ -36,13 +37,13 @@ function LinearPage() {
   const [saving, setSaving] = useState(false);
   const [dragging, setDragging] = useState<string | null>(null);
 
-  const loadBoard = useCallback(async () => {
+  const loadBoard = useCallback(async (force = false) => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/linear/board");
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Linear board could not be loaded.");
+      const body = force
+        ? await refreshRequest<Board>(["linear", "board"], "/api/linear/board")
+        : await cachedRequest<Board>(["linear", "board"], "/api/linear/board", undefined, cacheTime.workspace);
       setBoard(body);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Linear board could not be loaded.");
@@ -60,13 +61,16 @@ function LinearPage() {
     const current = board;
     if (!current) return;
     const previous = current.issues;
-    setBoard({ ...current, issues: current.issues.map((issue) => issue.id === issueId ? { ...issue, status: state } : issue) });
-    const response = await fetch(`/api/linear/issues/${encodeURIComponent(issueId)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }) });
-    if (!response.ok) {
+    const optimistic = { ...current, issues: current.issues.map((issue) => issue.id === issueId ? { ...issue, status: state } : issue) };
+    setBoard(optimistic);
+    queryClient.setQueryData(["linear", "board"], optimistic);
+    try {
+      await requestJson(`/api/linear/issues/${encodeURIComponent(issueId)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }) });
+      await loadBoard(true);
+    } catch (cause) {
       setBoard({ ...current, issues: previous });
-      setError((await response.json()).error || "Could not move the task.");
-    } else {
-      await loadBoard();
+      queryClient.setQueryData(["linear", "board"], { ...current, issues: previous });
+      setError(cause instanceof Error ? cause.message : "Could not move the task.");
     }
   }
 
@@ -83,7 +87,7 @@ function LinearPage() {
       <section className="linear-toolbar">
         <div className="workspace-identity"><span className="live-dot" /><div><small>Active workspace</small><strong>{board?.team?.name || "Connecting to Linear"}</strong></div></div>
         <div className="linear-stats"><span><strong>{issueCount.toString().padStart(2, "0")}</strong>issues</span><span><strong>{activeCount.toString().padStart(2, "0")}</strong>active</span><span><strong>{(board?.projects.length || 0).toString().padStart(2, "0")}</strong>projects</span></div>
-        <button className="refresh-board" onClick={loadBoard} disabled={loading}><RefreshCw size={15} className={loading ? "spinning" : ""} />Refresh</button>
+        <button className="refresh-board" onClick={() => loadBoard(true)} disabled={loading}><RefreshCw size={15} className={loading ? "spinning" : ""} />Refresh</button>
       </section>
 
       {error && <div className="linear-error"><CircleAlert size={18} /><span>{error}</span></div>}
@@ -124,11 +128,10 @@ function LinearPage() {
           setError("");
           try {
             const endpoint = composer === "task" ? "/api/linear/issues" : "/api/linear/projects";
-            const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-            const body = await response.json();
-            if (!response.ok) throw new Error(body.error || `Could not create the ${composer}.`);
+            await requestJson(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            await queryClient.invalidateQueries({ queryKey: ["linear", "board"] });
             setComposer(null);
-            await loadBoard();
+            await loadBoard(true);
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : `Could not create the ${composer}.`);
           } finally { setSaving(false); }

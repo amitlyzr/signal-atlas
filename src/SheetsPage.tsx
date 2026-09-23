@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, CircleAlert, ExternalLink, FileSpreadsheet, Link2, LoaderCircle, Plus, RefreshCw, Rows3, Save, Table2, X } from "lucide-react";
+import { cachedRequest, cacheTime, queryClient, requestJson, refreshRequest } from "./query";
 
 type Cell = string | number | boolean;
 type RecentSheet = { id: string; label: string };
@@ -39,16 +40,18 @@ export default function SheetsPage() {
     localStorage.setItem("signal-atlas-sheets", JSON.stringify(recents));
   }, [recents]);
 
-  async function openSheet(event?: FormEvent, directId?: string, label?: string) {
+  async function openSheet(event?: FormEvent, directId?: string, label?: string, force = false) {
     event?.preventDefault();
     const nextSource = directId || source;
     if (!nextSource.trim() || loading) return;
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/sheets/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spreadsheetId: nextSource, range }) });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Could not open spreadsheet.");
+      const key = ["sheets", "open", nextSource.trim(), range] as const;
+      const init = { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spreadsheetId: nextSource, range }) };
+      const body = force
+        ? await refreshRequest<SheetData>(key, "/api/sheets/open", init)
+        : await cachedRequest<SheetData>(key, "/api/sheets/open", init, cacheTime.workspace);
       setSheet(body);
       setValues(body.values || []);
       setSource(body.spreadsheetId);
@@ -77,9 +80,8 @@ export default function SheetsPage() {
     setSaving(true);
     setError("");
     try {
-      const response = await fetch("/api/sheets/values", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spreadsheetId: sheet.spreadsheetId, range, values: grid }) });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Could not save spreadsheet.");
+      await requestJson("/api/sheets/values", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spreadsheetId: sheet.spreadsheetId, range, values: grid }) });
+      queryClient.setQueriesData<SheetData>({ queryKey: ["sheets", "open"] }, (current) => current?.spreadsheetId === sheet.spreadsheetId ? { ...current, values: grid } : current);
       setDirty(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save spreadsheet.");
@@ -103,14 +105,14 @@ export default function SheetsPage() {
 
       {sheet ? (
         <section className="sheet-workspace">
-          <header><div><span className="kicker">Live range / {range}</span><h2>{sheet.spreadsheetId.slice(0, 16)}…</h2></div><div className="sheet-actions"><span className={dirty ? "dirty" : ""}>{dirty ? "Unsaved changes" : "In sync"}</span><button onClick={() => openSheet(undefined, sheet.spreadsheetId)} aria-label="Refresh range"><RefreshCw size={16} /></button><button onClick={() => setAppendOpen(true)}><Rows3 size={16} />Append row</button><button className="sheet-save" onClick={saveValues} disabled={!dirty || saving}><Save size={16} />{saving ? "Saving…" : "Save range"}</button><a href={sheet.url} target="_blank" rel="noreferrer" aria-label="Open in Google Sheets"><ExternalLink size={16} /></a></div></header>
+          <header><div><span className="kicker">Live range / {range}</span><h2>{sheet.spreadsheetId.slice(0, 16)}…</h2></div><div className="sheet-actions"><span className={dirty ? "dirty" : ""}>{dirty ? "Unsaved changes" : "In sync"}</span><button onClick={() => openSheet(undefined, sheet.spreadsheetId, undefined, true)} aria-label="Refresh range"><RefreshCw size={16} /></button><button onClick={() => setAppendOpen(true)}><Rows3 size={16} />Append row</button><button className="sheet-save" onClick={saveValues} disabled={!dirty || saving}><Save size={16} />{saving ? "Saving…" : "Save range"}</button><a href={sheet.url} target="_blank" rel="noreferrer" aria-label="Open in Google Sheets"><ExternalLink size={16} /></a></div></header>
           <div className="sheet-grid-shell"><table><thead><tr><th className="sheet-corner"><Table2 size={13} /></th>{Array.from({ length: columnCount }, (_, index) => <th key={index}>{columnName(index)}</th>)}</tr></thead><tbody>{grid.map((row, rowIndex) => <tr key={rowIndex}><th>{rowIndex + 1}</th>{row.map((cell, columnIndex) => <td key={columnIndex}><input value={String(cell)} onChange={(event) => updateCell(rowIndex, columnIndex, event.target.value)} aria-label={`Cell ${columnName(columnIndex)}${rowIndex + 1}`} /></td>)}</tr>)}</tbody></table></div>
           <footer><span><FileSpreadsheet size={14} />Connected through Google Sheets</span><span>{rowCount} rows · {columnCount} columns shown</span></footer>
         </section>
       ) : <section className="sheets-empty"><div className="sheet-stack" aria-hidden="true"><span /><span /><FileSpreadsheet size={33} /></div><div><span className="kicker">Awaiting a ledger</span><h2>Every useful system<br />starts with one cell.</h2><p>Connect an existing spreadsheet above, or create a blank one and begin shaping the data.</p></div></section>}
 
       {createOpen && <CreateSheet onClose={() => setCreateOpen(false)} onCreated={(created) => { setCreateOpen(false); setSource(created.spreadsheetId); setRecents((current) => [{ id: created.spreadsheetId, label: created.title }, ...current].slice(0, 6)); openSheet(undefined, created.spreadsheetId, created.title); }} />}
-      {appendOpen && sheet && <AppendRow columnCount={columnCount} onClose={() => setAppendOpen(false)} onAppend={async (row) => { const response = await fetch("/api/sheets/append", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spreadsheetId: sheet.spreadsheetId, range, row }) }); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || "Could not append row."); setAppendOpen(false); await openSheet(undefined, sheet.spreadsheetId); }} />}
+      {appendOpen && sheet && <AppendRow columnCount={columnCount} onClose={() => setAppendOpen(false)} onAppend={async (row) => { await requestJson("/api/sheets/append", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spreadsheetId: sheet.spreadsheetId, range, row }) }); await queryClient.invalidateQueries({ queryKey: ["sheets", "open"] }); setAppendOpen(false); await openSheet(undefined, sheet.spreadsheetId, undefined, true); }} />}
     </main>
   );
 }
@@ -119,7 +121,7 @@ function CreateSheet({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  async function create(event: FormEvent) { event.preventDefault(); setLoading(true); setError(""); try { const response = await fetch("/api/sheets/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title }) }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "Could not create spreadsheet."); onCreated(body); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create spreadsheet."); } finally { setLoading(false); } }
+  async function create(event: FormEvent) { event.preventDefault(); setLoading(true); setError(""); try { const body = await requestJson<{ spreadsheetId: string; title: string }>("/api/sheets/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title }) }); onCreated(body); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create spreadsheet."); } finally { setLoading(false); } }
   return <div className="sheet-modal-backdrop"><form className="sheet-modal" onSubmit={create}><header><div><span className="kicker">New ledger</span><h2>Create a spreadsheet</h2></div><button type="button" onClick={onClose}><X size={18} /></button></header><label><span>Spreadsheet title</span><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Quarterly signal tracker" required autoFocus /></label>{error && <div className="sheets-error"><CircleAlert size={15} />{error}</div>}<footer><span>A Sheet1 tab and frozen header row will be created.</span><button disabled={loading || !title.trim()}>{loading ? <LoaderCircle size={16} /> : <Plus size={16} />}{loading ? "Creating…" : "Create sheet"}</button></footer></form></div>;
 }
 

@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Archive, ArrowUpRight, CircleAlert, FileText, Inbox, LoaderCircle, Mail, PenLine, RefreshCw, Reply, Search, Send, Star, X } from "lucide-react";
+import { cachedRequest, cacheTime, queryClient, refreshRequest, requestJson } from "./query";
 
 type Message = {
   id: string;
@@ -59,29 +60,29 @@ export default function GmailPage() {
   const [error, setError] = useState("");
   const [compose, setCompose] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const forceRefresh = useRef(false);
 
   useEffect(() => {
-    const controller = new AbortController();
     setLoading(true);
     setError("");
-    fetch(`/api/gmail/messages?mailbox=${mailbox}&q=${encodeURIComponent(query)}`, { signal: controller.signal })
-      .then(async (response) => {
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || "Could not load Gmail.");
+    const key = ["gmail", "messages", mailbox, query] as const;
+    const url = `/api/gmail/messages?mailbox=${mailbox}&q=${encodeURIComponent(query)}`;
+    const loader = forceRefresh.current ? refreshRequest<{ messages: Message[] }>(key, url) : cachedRequest<{ messages: Message[] }>(key, url, undefined, cacheTime.live);
+    forceRefresh.current = false;
+    loader
+      .then((body) => {
         setMessages(body.messages || []);
         setSelected(null);
       })
-      .catch((cause) => {
-        if (cause?.name !== "AbortError") setError(cause instanceof Error ? cause.message : "Could not load Gmail.");
-      })
+      .catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load Gmail."))
       .finally(() => setLoading(false));
-    return () => controller.abort();
   }, [mailbox, refreshKey]);
 
   const unreadCount = useMemo(() => messages.filter((message) => message.unread).length, [messages]);
 
   async function runSearch(event: FormEvent) {
     event.preventDefault();
+    forceRefresh.current = true;
     setRefreshKey((key) => key + 1);
   }
 
@@ -89,13 +90,13 @@ export default function GmailPage() {
     setOpening(true);
     setError("");
     try {
-      const response = await fetch(`/api/gmail/messages/${message.id}`);
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Could not open this message.");
+      const body = await cachedRequest<{ message: Message }>(["gmail", "message", message.id], `/api/gmail/messages/${message.id}`, undefined, 5 * 60_000);
       setSelected(body.message);
       if (message.unread) {
+        queryClient.setQueryData<{ message: Message }>(["gmail", "message", message.id], { message: { ...body.message, unread: false } });
         setMessages((current) => current.map((item) => item.id === message.id ? { ...item, unread: false } : item));
-        fetch(`/api/gmail/messages/${message.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ read: true }) }).catch(() => {});
+        queryClient.setQueriesData<{ messages: Message[] }>({ queryKey: ["gmail", "messages"] }, (current) => current ? { ...current, messages: current.messages.map((item) => item.id === message.id ? { ...item, unread: false } : item) } : current);
+        requestJson(`/api/gmail/messages/${message.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ read: true }) }).catch(() => {});
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not open this message.");
@@ -109,8 +110,9 @@ export default function GmailPage() {
     setMessages((current) => current.map((item) => item.id === message.id ? { ...item, starred: next } : item));
     if (selected?.id === message.id) setSelected({ ...selected, starred: next });
     try {
-      const response = await fetch(`/api/gmail/messages/${message.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ starred: next }) });
-      if (!response.ok) throw new Error("Could not update star.");
+      await requestJson(`/api/gmail/messages/${message.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ starred: next }) });
+      queryClient.setQueriesData<{ messages: Message[] }>({ queryKey: ["gmail", "messages"] }, (current) => current ? { ...current, messages: current.messages.map((item) => item.id === message.id ? { ...item, starred: next } : item) } : current);
+      queryClient.setQueryData<{ message: Message }>(["gmail", "message", message.id], (current) => current ? { message: { ...current.message, starred: next } } : current);
     } catch {
       setMessages((current) => current.map((item) => item.id === message.id ? { ...item, starred: !next } : item));
     }
@@ -143,9 +145,9 @@ export default function GmailPage() {
         <div className="gmail-list-pane">
           <header>
             <div><span className="kicker">Mailbox / {mailbox.toLowerCase()}</span><h2>{mailboxes.find((item) => item.id === mailbox)?.label}</h2></div>
-            <button className="gmail-refresh" onClick={() => setRefreshKey((key) => key + 1)} aria-label="Refresh inbox"><RefreshCw size={16} className={loading ? "gmail-spinning" : ""} /></button>
+            <button className="gmail-refresh" onClick={() => { forceRefresh.current = true; setRefreshKey((key) => key + 1); }} aria-label="Refresh inbox"><RefreshCw size={16} className={loading ? "gmail-spinning" : ""} /></button>
           </header>
-          <form className="gmail-search" onSubmit={runSearch}><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search mail…" aria-label="Search mail" />{query && <button type="button" onClick={() => { setQuery(""); setRefreshKey((key) => key + 1); }} aria-label="Clear search"><X size={15} /></button>}</form>
+          <form className="gmail-search" onSubmit={runSearch}><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search mail…" aria-label="Search mail" />{query && <button type="button" onClick={() => { setQuery(""); forceRefresh.current = true; setRefreshKey((key) => key + 1); }} aria-label="Clear search"><X size={15} /></button>}</form>
 
           {error && <div className="gmail-error"><CircleAlert size={16} />{error}</div>}
           {loading ? <div className="gmail-loading"><LoaderCircle size={20} />Fetching correspondence…</div> : messages.length ? (
@@ -191,9 +193,8 @@ function ComposeSheet({ initialRecipient, initialSubject, onClose, onSent }: { i
     setSending(true);
     setError("");
     try {
-      const response = await fetch("/api/gmail/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipient, subject, body }) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Could not send email.");
+      await requestJson("/api/gmail/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipient, subject, body }) });
+      await queryClient.invalidateQueries({ queryKey: ["gmail", "messages"] });
       onSent();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not send email.");

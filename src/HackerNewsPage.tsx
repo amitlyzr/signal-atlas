@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Bookmark, Building2, Clock3, Flame, LoaderCircle, MessageCircle, RefreshCw, Rocket, Search, TrendingUp, Zap } from "lucide-react";
 import { motion } from "framer-motion";
+import { cachedRequest, cacheTime, refreshRequest } from "./query";
 
 type Story = {
   id: number;
@@ -59,9 +60,11 @@ export default function HackerNewsPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/api/hackernews/startups${force ? "?refresh=1" : ""}`);
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Could not load Hacker News.");
+      const key = ["hackernews", "startups"] as const;
+      const url = `/api/hackernews/startups${force ? "?refresh=1" : ""}`;
+      const body = force
+        ? await refreshRequest<{ stories: Story[]; generatedAt?: string }>(key, url)
+        : await cachedRequest<{ stories: Story[]; generatedAt?: string }>(key, url, undefined, cacheTime.search);
       setStories(body.stories || []);
       setUpdatedAt(body.generatedAt || new Date().toISOString());
     } catch (cause) {

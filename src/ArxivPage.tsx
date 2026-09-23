@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Bookmark, BookOpenText, CalendarDays, CircleAlert, ExternalLink, FileText, LoaderCircle, Search, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import { cachedRequest, cacheTime } from "./query";
 
 type Paper = { id: string; title: string; summary: string; published: string; updated: string; authors: string[]; categories: string[]; primaryCategory: string; url: string; pdfUrl: string };
 type Sort = "relevance" | "submittedDate" | "lastUpdatedDate";
@@ -49,9 +50,7 @@ export default function ArxivPage() {
     setMode("search");
     try {
       const params = new URLSearchParams({ q: nextQuery, category, sort, ...(daily ? { mode: "daily" } : {}) });
-      const response = await fetch(`/api/arxiv/papers?${params}`);
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "arXiv search failed.");
+      const body = await cachedRequest<{ papers: Paper[] }>(["arxiv", "papers", params.toString()], `/api/arxiv/papers?${params}`, undefined, cacheTime.search);
       setPapers(body.papers || []);
       setSelected(body.papers?.[0] || null);
     } catch (cause) {

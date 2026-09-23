@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CalendarDays, ChevronLeft, ChevronRight, CircleAlert, Clock3, MapPin, Plus, RotateCw, Trash2, X } from "lucide-react";
+import { cachedRequest, cacheTime, queryClient, refreshRequest, requestJson } from "./query";
 
 type CalendarEvent = {
   id: string;
@@ -57,14 +58,16 @@ function CalendarPage() {
     return { start, end };
   }, [anchor]);
 
-  const loadEvents = useCallback(async () => {
+  const loadEvents = useCallback(async (force = false) => {
     setLoading(true);
     setError("");
     try {
       const params = new URLSearchParams({ from: range.start.toISOString(), to: range.end.toISOString() });
-      const response = await fetch(`/api/calendar/events?${params}`);
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Could not load your calendar.");
+      const key = ["calendar", "events", params.toString()] as const;
+      const url = `/api/calendar/events?${params}`;
+      const body = force
+        ? await refreshRequest<{ events: CalendarEvent[]; account?: string }>(key, url)
+        : await cachedRequest<{ events: CalendarEvent[]; account?: string }>(key, url, undefined, cacheTime.workspace);
       setEvents(body.events || []);
       setAccount(body.account || "Google Calendar");
     } catch (cause) {
@@ -99,7 +102,7 @@ function CalendarPage() {
       const start = new Date(`${draft.date}T${draft.startTime}:00`);
       const end = new Date(`${draft.date}T${draft.endTime}:00`);
       if (end <= start) throw new Error("The end time must be after the start time.");
-      const response = await fetch("/api/calendar/events", {
+      await requestJson("/api/calendar/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -111,11 +114,10 @@ function CalendarPage() {
           description: draft.description,
         }),
       });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Could not create the event.");
+      await queryClient.invalidateQueries({ queryKey: ["calendar", "events"] });
       setComposerOpen(false);
       setDraft(initialDraft());
-      await loadEvents();
+      await loadEvents(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not create the event.");
     } finally {
@@ -125,9 +127,13 @@ function CalendarPage() {
 
   async function removeEvent(id: string) {
     if (!window.confirm("Remove this event from Google Calendar?")) return;
-    const response = await fetch(`/api/calendar/events/${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (response.ok) setEvents((current) => current.filter((event) => event.id !== id));
-    else setError((await response.json()).error || "Could not remove the event.");
+    try {
+      await requestJson(`/api/calendar/events/${encodeURIComponent(id)}`, { method: "DELETE" });
+      setEvents((current) => current.filter((event) => event.id !== id));
+      queryClient.setQueriesData<{ events: CalendarEvent[]; account?: string }>({ queryKey: ["calendar", "events"] }, (current) => current ? { ...current, events: current.events.filter((event) => event.id !== id) } : current);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not remove the event.");
+    }
   }
 
   function openForDay(date: Date) {
@@ -148,7 +154,7 @@ function CalendarPage() {
         </div>
       </section>
 
-      {error && <div className="calendar-notice"><CircleAlert size={19} /><div><strong>{error}</strong><span>{error.includes("not connected") ? "Connect Google Calendar under Agent Tools, then refresh this page." : "The Calendar connector is present, but its provider did not complete this request."}</span></div><button onClick={loadEvents}><RotateCw size={15} /> Retry</button></div>}
+      {error && <div className="calendar-notice"><CircleAlert size={19} /><div><strong>{error}</strong><span>{error.includes("not connected") ? "Connect Google Calendar under Agent Tools, then refresh this page." : "The Calendar connector is present, but its provider did not complete this request."}</span></div><button onClick={() => loadEvents(true)}><RotateCw size={15} /> Retry</button></div>}
 
       <section className="calendar-workspace">
         <aside className="calendar-brief">

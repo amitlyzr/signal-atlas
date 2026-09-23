@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, MouseEvent, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowUpRight,
@@ -21,6 +21,7 @@ import GmailPage from "./GmailPage";
 import SheetsPage from "./SheetsPage";
 import ArxivPage from "./ArxivPage";
 import HackerNewsPage from "./HackerNewsPage";
+import { cachedRequest, cacheTime } from "./query";
 
 type Source = { id: string; title: string; url: string; domain: string; excerpt: string; position: number; category: string };
 type Video = { id: string; title: string; channel: string; publishedAt: string; description: string; thumbnail: string; url: string };
@@ -35,20 +36,35 @@ function formatDate(date: string) {
 }
 
 function App() {
-  const isCalendar = window.location.pathname.startsWith("/calendar");
-  const isDomains = window.location.pathname.startsWith("/domains");
-  const isLinear = window.location.pathname.startsWith("/linear");
-  const isYoutube = window.location.pathname.startsWith("/youtube");
-  const isGmail = window.location.pathname.startsWith("/gmail");
-  const isSheets = window.location.pathname.startsWith("/sheets");
-  const isArxiv = window.location.pathname.startsWith("/arxiv");
-  const isHackerNews = window.location.pathname.startsWith("/hackernews");
+  const [pathname, setPathname] = useState(window.location.pathname);
+  const isCalendar = pathname.startsWith("/calendar");
+  const isDomains = pathname.startsWith("/domains");
+  const isLinear = pathname.startsWith("/linear");
+  const isYoutube = pathname.startsWith("/youtube");
+  const isGmail = pathname.startsWith("/gmail");
+  const isSheets = pathname.startsWith("/sheets");
+  const isArxiv = pathname.startsWith("/arxiv");
+  const isHackerNews = pathname.startsWith("/hackernews");
   const [query, setQuery] = useState("");
   const [atlas, setAtlas] = useState<Atlas | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const noun = useMemo(() => atlas?.query || "the open web", [atlas]);
+
+  useEffect(() => {
+    const onPopState = () => setPathname(window.location.pathname);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  function navigate(event: MouseEvent<HTMLAnchorElement>, path: string) {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (window.location.pathname !== path) window.history.pushState({}, "", path);
+    setPathname(path);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
 
   async function discover(event?: FormEvent, suggested?: string) {
     event?.preventDefault();
@@ -58,13 +74,11 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/discover", {
+      const body = await cachedRequest<Atlas>(["discover", nextQuery.toLowerCase()], "/api/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: nextQuery }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "The atlas could not be built.");
+      }, cacheTime.search);
       setAtlas(body);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The atlas could not be built.");
@@ -81,15 +95,15 @@ function App() {
           <span>{isYoutube ? "Signal/Room" : "Signal Atlas"}</span>
         </a>
         <nav className="product-nav" aria-label="Product">
-          <a className={!isCalendar && !isDomains && !isLinear && !isYoutube && !isGmail && !isSheets && !isArxiv && !isHackerNews ? "active" : ""} href="/">Research</a>
-          <a className={isYoutube ? "active" : ""} href="/youtube">YouTube</a>
-          <a className={isGmail ? "active" : ""} href="/gmail">Gmail</a>
-          <a className={isSheets ? "active" : ""} href="/sheets">Sheets</a>
-          <a className={isArxiv ? "active" : ""} href="/arxiv">arXiv</a>
-          <a className={isHackerNews ? "active" : ""} href="/hackernews">Startups</a>
-          <a className={isCalendar ? "active" : ""} href="/calendar">Calendar</a>
-          <a className={isDomains ? "active" : ""} href="/domains">Domains</a>
-          <a className={isLinear ? "active" : ""} href="/linear">Linear</a>
+          <a className={!isCalendar && !isDomains && !isLinear && !isYoutube && !isGmail && !isSheets && !isArxiv && !isHackerNews ? "active" : ""} href="/" onClick={(event) => navigate(event, "/")}>Research</a>
+          <a className={isYoutube ? "active" : ""} href="/youtube" onClick={(event) => navigate(event, "/youtube")}>YouTube</a>
+          <a className={isGmail ? "active" : ""} href="/gmail" onClick={(event) => navigate(event, "/gmail")}>Gmail</a>
+          <a className={isSheets ? "active" : ""} href="/sheets" onClick={(event) => navigate(event, "/sheets")}>Sheets</a>
+          <a className={isArxiv ? "active" : ""} href="/arxiv" onClick={(event) => navigate(event, "/arxiv")}>arXiv</a>
+          <a className={isHackerNews ? "active" : ""} href="/hackernews" onClick={(event) => navigate(event, "/hackernews")}>Startups</a>
+          <a className={isCalendar ? "active" : ""} href="/calendar" onClick={(event) => navigate(event, "/calendar")}>Calendar</a>
+          <a className={isDomains ? "active" : ""} href="/domains" onClick={(event) => navigate(event, "/domains")}>Domains</a>
+          <a className={isLinear ? "active" : ""} href="/linear" onClick={(event) => navigate(event, "/linear")}>Linear</a>
         </nav>
         <div className="topbar-meta">
           <span className="live-dot" />

@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, CircleAlert, ExternalLink, LoaderCircle, Play, Search, X } from "lucide-react";
+import { cachedRequest, cacheTime } from "./query";
 
 type Video = { id: string; title: string; channel: string; publishedAt: string; description: string; thumbnail: string; url: string };
 type SearchResult = { query: string; order: string; duration: string; videos: Video[] };
@@ -27,13 +28,11 @@ export default function YoutubePage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/youtube/search", {
+      const body = await cachedRequest<SearchResult>(["youtube", "search", nextQuery.toLowerCase()], "/api/youtube/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: nextQuery, order: "relevance", duration: "any" }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "YouTube search failed.");
+      }, cacheTime.search);
       setResult(body);
       setSelected(body.videos?.[0] || null);
     } catch (cause) {

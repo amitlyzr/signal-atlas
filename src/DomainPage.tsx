@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, Check, CircleAlert, Globe2, Sparkles, X } from "lucide-react";
+import { cachedRequest, cacheTime } from "./query";
 
 type DomainResult = { domain: string; tld: string; status: string; error?: string };
 const preferredTlds = ["com", "ai", "io", "co", "app", "dev", "tech", "xyz"];
@@ -15,10 +16,9 @@ function DomainPage() {
   const [searchedName, setSearchedName] = useState("");
 
   useEffect(() => {
-    fetch("/api/domains/tlds").then(async (response) => {
-      const body = await response.json();
-      if (response.ok && Array.isArray(body.tlds)) setAllTlds(body.tlds);
-    }).catch(() => undefined);
+    cachedRequest<{ tlds: string[] }>(["domains", "tlds"], "/api/domains/tlds", undefined, cacheTime.catalog)
+      .then((body) => { if (Array.isArray(body.tlds)) setAllTlds(body.tlds); })
+      .catch(() => undefined);
   }, []);
 
   const tldOptions = useMemo(() => {
@@ -37,13 +37,11 @@ function DomainPage() {
     setError("");
     setResults([]);
     try {
-      const response = await fetch("/api/domains/search", {
+      const body = await cachedRequest<{ name: string; results: DomainResult[] }>(["domains", "search", name.trim().toLowerCase(), [...selected].sort()], "/api/domains/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, tlds: selected }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error || "Domain search failed.");
+      }, cacheTime.search);
       setSearchedName(body.name);
       setResults(body.results || []);
     } catch (cause) {
