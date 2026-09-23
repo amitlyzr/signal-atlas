@@ -34,6 +34,8 @@ const TOOL_IDS = {
   sheetsAppend: "conn_8846d1b07c8f__google_sheets__values_append",
   arxivSearch: "conn_62904a4aa706__arxiv__search_papers",
   arxivDaily: "conn_62904a4aa706__arxiv__get_daily_updates",
+  hackerTop: "conn_b0d26cfc4fdb__hackernews__top_stories_get",
+  hackerItem: "conn_b0d26cfc4fdb__hackernews__item_get",
 };
 
 app.set("trust proxy", 1);
@@ -548,6 +550,64 @@ app.get("/api/arxiv/papers", async (req, res) => {
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "arXiv did not return papers.";
     res.status(502).json({ error: message });
+  }
+});
+
+const hackerNewsCache = { expiresAt: 0, generatedAt: "", stories: [] };
+
+function hackerNewsCategory(item) {
+  const text = `${item?.title || ""} ${item?.url || ""}`.toLowerCase();
+  if (/\b(show hn|launch|launched|introducing|released|open[ -]source|new product)\b/.test(text)) return "launches";
+  if (/\b(fund(?:ing|ed)?|rais(?:e|ed|es)|seed round|series [a-f]|venture|valuation|acquir(?:e|ed|es)|acquisition|ipo|revenue)\b/.test(text)) return "capital";
+  if (/\b(ai|artificial intelligence|llm|language model|inference|agentic|agents?|gpu|machine learning|openai|anthropic|claude|gpt[-– ]?\d*)\b/.test(text)) return "ai";
+  if (/\b(startup|founders?|bootstrapp?ed|y combinator|\byc\b|indie hacker)\b/.test(text)) return "founders";
+  if (/\b(api|developer|database|cloud|browser|security|saas|platform|framework|software|hardware|microsoft|amd|intel|wordpress|saml|uefi|kernels?|cyber|hackers?|data attack)\b/.test(text)) return "platform";
+  return "general";
+}
+
+function normalizeHackerStory(item, rank) {
+  const id = Number(item?.id || 0);
+  let domain = "news.ycombinator.com";
+  try { if (item?.url) domain = new URL(item.url).hostname.replace(/^www\./, ""); } catch { /* keep the Hacker News domain */ }
+  return {
+    id,
+    rank: rank + 1,
+    title: cleanText(item?.title || "Untitled story"),
+    by: String(item?.by || "unknown"),
+    score: Number(item?.score || 0),
+    comments: Number(item?.descendants || 0),
+    time: Number(item?.time || 0),
+    category: hackerNewsCategory(item),
+    domain,
+    url: item?.url || `https://news.ycombinator.com/item?id=${id}`,
+    discussionUrl: `https://news.ycombinator.com/item?id=${id}`,
+  };
+}
+
+app.get("/api/hackernews/startups", async (req, res) => {
+  const force = req.query.refresh === "1";
+  try {
+    if (!force && hackerNewsCache.expiresAt > Date.now() && hackerNewsCache.stories.length) {
+      return res.json({ generatedAt: hackerNewsCache.generatedAt, cached: true, stories: hackerNewsCache.stories });
+    }
+
+    const ids = await executeTool(TOOL_IDS.hackerTop, {}, 30000);
+    const candidates = (Array.isArray(ids) ? ids : ids?.items || ids?.stories || []).slice(0, 18);
+    const settled = await Promise.allSettled(candidates.map((id) => executeTool(TOOL_IDS.hackerItem, { path: { id: String(id) } }, 30000)));
+    const stories = settled
+      .map((result, rank) => result.status === "fulfilled" ? normalizeHackerStory(result.value, rank) : null)
+      .filter((story) => story && story.id && story.title)
+      .sort((a, b) => b.time - a.time);
+    const startupStories = stories.filter((story) => story.category !== "general");
+    const curatedStories = startupStories.length >= 6 ? startupStories : stories;
+
+    if (!curatedStories.length) throw new Error("Hacker News did not return story details.");
+    hackerNewsCache.stories = curatedStories;
+    hackerNewsCache.generatedAt = new Date().toISOString();
+    hackerNewsCache.expiresAt = Date.now() + 1000 * 60 * 3;
+    return res.json({ generatedAt: hackerNewsCache.generatedAt, cached: false, stories: curatedStories });
+  } catch (cause) {
+    return res.status(502).json({ error: cause instanceof Error ? cause.message : "Hacker News did not return the startup feed." });
   }
 });
 

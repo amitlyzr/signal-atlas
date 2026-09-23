@@ -111,3 +111,14 @@ Last updated: 2026-09-23
 - Layout: compact desk-mode rail, abstract index, and generous paper-detail pane
 - Typography: Space Grotesk for paper hierarchy, DM Sans for abstracts and metadata
 - Detail pane becomes an off-canvas reading sheet on smaller screens
+
+## Page-specific direction: Hacker News
+
+Last updated: 2026-09-23
+
+“Founder Wire” is an editorial startup-intelligence desk: warm newsprint, near-black ink, Hacker News orange, and a restrained market-green watchlist signal. It should read like an operator’s morning paper rather than a generic analytics dashboard.
+
+- Layout: magazine lead story, dense chronological feed, and a narrow most-discussed/watchlist rail
+- Typography: Space Grotesk for headlines and momentum numbers, DM Sans for metadata and controls
+- Components: sharp hairlines, 0–3px radii, no decorative shadows, compact uppercase labels
+- Motion: short feed reveals and one restrained refresh spin; no ambient effects

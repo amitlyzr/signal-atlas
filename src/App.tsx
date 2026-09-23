@@ -20,6 +20,7 @@ import YoutubePage from "./YoutubePage";
 import GmailPage from "./GmailPage";
 import SheetsPage from "./SheetsPage";
 import ArxivPage from "./ArxivPage";
+import HackerNewsPage from "./HackerNewsPage";
 
 type Source = { id: string; title: string; url: string; domain: string; excerpt: string; position: number; category: string };
 type Video = { id: string; title: string; channel: string; publishedAt: string; description: string; thumbnail: string; url: string };
@@ -41,6 +42,7 @@ function App() {
   const isGmail = window.location.pathname.startsWith("/gmail");
   const isSheets = window.location.pathname.startsWith("/sheets");
   const isArxiv = window.location.pathname.startsWith("/arxiv");
+  const isHackerNews = window.location.pathname.startsWith("/hackernews");
   const [query, setQuery] = useState("");
   const [atlas, setAtlas] = useState<Atlas | null>(null);
   const [loading, setLoading] = useState(false);
@@ -79,23 +81,24 @@ function App() {
           <span>{isYoutube ? "Signal/Room" : "Signal Atlas"}</span>
         </a>
         <nav className="product-nav" aria-label="Product">
-          <a className={!isCalendar && !isDomains && !isLinear && !isYoutube && !isGmail && !isSheets && !isArxiv ? "active" : ""} href="/">Research</a>
+          <a className={!isCalendar && !isDomains && !isLinear && !isYoutube && !isGmail && !isSheets && !isArxiv && !isHackerNews ? "active" : ""} href="/">Research</a>
           <a className={isYoutube ? "active" : ""} href="/youtube">YouTube</a>
           <a className={isGmail ? "active" : ""} href="/gmail">Gmail</a>
           <a className={isSheets ? "active" : ""} href="/sheets">Sheets</a>
           <a className={isArxiv ? "active" : ""} href="/arxiv">arXiv</a>
+          <a className={isHackerNews ? "active" : ""} href="/hackernews">Startups</a>
           <a className={isCalendar ? "active" : ""} href="/calendar">Calendar</a>
           <a className={isDomains ? "active" : ""} href="/domains">Domains</a>
           <a className={isLinear ? "active" : ""} href="/linear">Linear</a>
         </nav>
         <div className="topbar-meta">
           <span className="live-dot" />
-          <span>{isYoutube ? "Live YouTube connector" : isGmail ? "Live Gmail" : isSheets ? "Google Sheets" : isArxiv ? "arXiv papers" : isCalendar ? "Google Calendar" : isDomains ? "Find a Domain" : isLinear ? "Linear MCP" : "Firecrawl + YouTube"}</span>
+          <span>{isYoutube ? "Live YouTube connector" : isGmail ? "Live Gmail" : isSheets ? "Google Sheets" : isArxiv ? "arXiv papers" : isHackerNews ? "Hacker News wire" : isCalendar ? "Google Calendar" : isDomains ? "Find a Domain" : isLinear ? "Linear MCP" : "Firecrawl + YouTube"}</span>
           <span className="edition">Field edition / 01</span>
         </div>
       </header>
 
-      {isYoutube ? <YoutubePage /> : isGmail ? <GmailPage /> : isSheets ? <SheetsPage /> : isArxiv ? <ArxivPage /> : isCalendar ? <CalendarPage /> : isDomains ? <DomainPage /> : isLinear ? <LinearPage /> : <>
+      {isYoutube ? <YoutubePage /> : isGmail ? <GmailPage /> : isSheets ? <SheetsPage /> : isArxiv ? <ArxivPage /> : isHackerNews ? <HackerNewsPage /> : isCalendar ? <CalendarPage /> : isDomains ? <DomainPage /> : isLinear ? <LinearPage /> : <>
 
       <main id="top">
         <section className={`hero ${atlas ? "hero--compact" : ""}`}>
