@@ -2,21 +2,21 @@
 
 ## Current UI direction
 
-Last updated: 2026-09-22
+Last updated: 2026-09-23
 
 ### Summary
 
-“Field Notes” is an editorial investigative workspace: warm paper surfaces, precise black typography, restrained ember signals, and dossier-like composition. It should feel authored and analytical, never like a generic SaaS dashboard.
+“Signal Noir” is the shared visual system across every workspace: warm graphite, elevated charcoal, soft ivory typography, vivid signal red, bronze hairlines, and a fine analog grain. It should feel like a cinematic operating room for research and work—tactile, focused, and authored rather than like a generic productivity dashboard.
 
 ### Palette
 
-- Preset: Paper & Ink, tuned warmer with an ember signal
-- Colors: `#f7f4ed`, `#e5e0d5`, `#282724`, `#11110f`, `#d84f2f`
+- Source: custom palette derived from Charcoal & Ember and the Signal Room reference
+- Colors: graphite `hsl(40 4% 8%)`, panel `hsl(40 4% 11%)`, ivory `hsl(44 28% 94%)`, signal red `hsl(7 100% 60%)`, bronze `hsl(34 11% 38%)`
 - Usage:
-  - Background: warm paper
-  - Foreground: softened charcoal
-  - Primary: near-black ink
-  - Accent: ember only for active, live, or YouTube states
+  - Background: warm near-black graphite with very restrained radial light
+  - Foreground: soft ivory, never pure white
+  - Panels: shallow charcoal steps separated by bronze-gray rules
+  - Accent: signal red only for active navigation, primary actions, live states, and focal words
 
 ### Typography
 
@@ -27,31 +27,32 @@ Last updated: 2026-09-22
 
 ### Layout
 
-- Archetype: asymmetric
-- Structure: 60/40 evidence canvas and video rail on desktop, stacked on mobile
-- Grid: 12 columns, 20–28px gutters, 1240px maximum width
-- Density: compact metadata with generous section separation
-- Responsive behavior: rail moves below evidence at 900px; micro-stats become a horizontal row
+- Archetype: cinematic editorial shell containing each page’s established dashboard, magazine, or asymmetric workspace
+- Structure: shared 1440px command-room chrome; page-specific information architecture remains intact
+- Grid: existing page grids with 20–44px gutters and consistent edge alignment
+- Density: compact metadata, large declarative headings, generous section separation
+- Responsive behavior: navigation becomes horizontally scrollable; page rails stack or become sheets at existing breakpoints
 
 ### Components
 
-- Radius: 6–10px
-- Borders: 1px ink at low opacity
-- Shadows: none except a shallow lifted search panel
-- Buttons: near-black primary, outlined secondary, ember active state
-- Cards / panels: paper-on-paper with rules rather than floating shadows
-- Navigation: wordmark plus status beacon and plain-text actions
+- Radius: 4–8px controls; large content surfaces remain square
+- Borders: 1px bronze-gray hairlines
+- Shadows: absent except search panels, media stages, and off-canvas sheets
+- Buttons: signal-red primary, transparent outlined secondary
+- Cards / panels: charcoal-on-graphite with rules rather than floating cards
+- Navigation: uppercase wordmark, red instrument mark, plain-text tabs, red active underline, live beacon
 
 ### Motion
 
 - Intensity: restrained
-- Preferred patterns: one scan-line pass, short staggered evidence reveal, 160ms hover shifts
+- Preferred patterns: short staggered evidence reveal, 160ms hover shifts, one restrained loading spin
 - Avoid: bouncing, parallax, ambient floating blobs
 
 ### Implementation notes
 
 - Use CSS variables for every color and shadow.
-- Preserve the asymmetric hierarchy and source-first reading order.
+- The global Signal Noir palette supersedes older page-specific light palettes; page-specific layouts and interaction patterns remain authoritative.
+- Preserve each workspace’s hierarchy and reading order.
 - Avoid raw one-off color utilities and generic gradient decoration.
 
 ## Page-specific direction: YouTube

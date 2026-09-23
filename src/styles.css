@@ -1115,3 +1115,182 @@ footer span:first-child { color: hsl(var(--foreground)); font: 600 13px/1 "Space
   .arxiv-paper-list { max-height: none; }
   .arxiv-detail.arxiv-detail--open { padding: 26px 20px; }
 }
+
+/* Shared product direction / Signal Noir */
+:root {
+  color-scheme: dark;
+  color: hsl(44 28% 94%);
+  background: hsl(40 4% 8%);
+  --background: 40 4% 8%;
+  --surface: 40 4% 11%;
+  --surface-muted: 36 5% 14%;
+  --foreground: 44 28% 94%;
+  --ink: 44 28% 94%;
+  --muted: 36 7% 61%;
+  --border: 36 7% 25%;
+  --accent: 7 100% 60%;
+  --accent-soft: 7 45% 16%;
+  --inverse: 40 4% 8%;
+  --shadow-search: 0 24px 70px hsl(0 0% 0% / .28);
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --signal-bg: 40 4% 8%;
+  --signal-panel: 40 4% 11%;
+  --signal-panel-soft: 36 5% 14%;
+  --signal-ivory: 44 28% 94%;
+  --signal-muted: 36 7% 61%;
+  --signal-line: 36 7% 25%;
+  --signal-red: 7 100% 60%;
+  --signal-red-dark: 7 78% 48%;
+  --signal-bronze: 34 11% 38%;
+}
+
+body { color: hsl(var(--signal-ivory)); background: hsl(var(--signal-bg)); }
+body::before { z-index: 80; opacity: .52; mix-blend-mode: soft-light; }
+::selection { color: hsl(var(--signal-ivory)); background: hsl(var(--signal-red) / .72); }
+
+.app-shell {
+  min-height: 100vh;
+  position: relative;
+  isolation: isolate;
+  color: hsl(var(--signal-ivory));
+  background:
+    linear-gradient(115deg, transparent 55%, hsl(var(--signal-red) / .018)),
+    hsl(var(--signal-bg));
+}
+.app-shell::before {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 82% 7%, hsl(var(--signal-ivory) / .025), transparent 31%);
+}
+
+.app-shell .topbar {
+  width: min(1440px, calc(100% - 40px));
+  max-width: 1440px;
+  height: 76px;
+  padding: 0 44px;
+  border-color: hsl(var(--signal-line));
+  color: hsl(var(--signal-ivory));
+  background: hsl(var(--signal-bg) / .94);
+  backdrop-filter: blur(18px);
+}
+.app-shell .brand { color: hsl(var(--signal-ivory)); text-transform: uppercase; letter-spacing: .07em; }
+.app-shell .brand-mark { width: 30px; height: 30px; border: 0; border-radius: 0; color: hsl(var(--signal-red)); box-shadow: none; }
+.app-shell .product-nav { border: 0; border-radius: 0; background: transparent; }
+.app-shell .product-nav a { position: relative; border-radius: 0; color: hsl(var(--signal-muted)); font: 600 11px/1 "DM Sans", sans-serif; text-transform: none; letter-spacing: 0; transition: color .16s ease; }
+.app-shell .product-nav a:hover { color: hsl(var(--signal-ivory)); }
+.app-shell .product-nav a.active { color: hsl(var(--signal-ivory)); background: transparent; box-shadow: none; }
+.app-shell .product-nav a.active::after { content: ""; height: 2px; position: absolute; left: 12px; right: 12px; bottom: -18px; background: hsl(var(--signal-red)); }
+.app-shell .topbar-meta { color: hsl(var(--signal-muted)); font-size: 10px; }
+.app-shell .live-dot { background: hsl(var(--signal-red)); box-shadow: 0 0 0 4px hsl(var(--signal-red) / .12); }
+.app-shell .edition { display: none; }
+.app-shell > footer { width: min(1440px, calc(100% - 40px)); max-width: 1440px; border-color: hsl(var(--signal-line)); color: hsl(var(--signal-muted)); background: hsl(var(--signal-bg)); }
+.app-shell > footer span:first-child { color: hsl(var(--signal-ivory)); }
+
+.hero h1 em, .calendar-hero h1 em, .domain-hero h1 em, .linear-heading h1 em { color: hsl(var(--signal-red)); }
+.search-box, .arxiv-search, .sheets-connect > form { border-color: hsl(var(--signal-line)); background: linear-gradient(90deg, hsl(var(--signal-panel-soft)), hsl(var(--signal-panel))); box-shadow: var(--shadow-search); }
+.search-box > svg, .source-domain, .manifesto article svg, .gap-heading svg { color: hsl(var(--signal-red)); }
+.search-box button, .primary-action, .domain-search button, .linear-action, .linear-composer > footer button { color: hsl(var(--signal-ivory)); border-color: hsl(var(--signal-red)); background: hsl(var(--signal-red)); }
+.search-box button:hover:not(:disabled), .primary-action:hover, .domain-search button:hover, .linear-action:hover { border-color: hsl(var(--signal-red-dark)); background: hsl(var(--signal-red-dark)); }
+.source-card:hover, .issue-card, .project-row, .gap-lens { background: hsl(var(--signal-panel)); }
+.provider-error, .calendar-notice { background: hsl(var(--signal-red) / .06); }
+.event-composer, .linear-composer { color: hsl(var(--signal-ivory)); background: hsl(var(--signal-panel)); box-shadow: -20px 0 65px hsl(0 0% 0% / .42); }
+.event-composer input, .event-composer textarea, .linear-composer input, .linear-composer textarea, .linear-composer select { color: hsl(var(--signal-ivory)); }
+.issue-meta span { background: hsl(var(--signal-panel-soft)); }
+.issue-meta span[data-priority="1"], .issue-meta span[data-priority="2"] { color: hsl(var(--signal-red)); background: hsl(var(--signal-red) / .1); }
+
+.gmail-main {
+  --mail-paper: var(--signal-bg);
+  --mail-sheet: var(--signal-panel);
+  --mail-ink: var(--signal-ivory);
+  --mail-muted: var(--signal-muted);
+  --mail-line: var(--signal-line);
+  --mail-sage: var(--signal-red);
+  --mail-sage-soft: var(--signal-panel-soft);
+  --mail-red: var(--signal-red);
+  --mail-red-soft: 7 35% 16%;
+  --mail-shadow: 0 24px 65px hsl(0 0% 0% / .35);
+}
+.gmail-compose-button, .gmail-send {
+  color: hsl(var(--signal-ivory));
+  border-color: hsl(var(--signal-red));
+  background: hsl(var(--signal-red));
+}
+.gmail-message-list, .gmail-reader, .gmail-sidebar, .gmail-compose { background: hsl(var(--signal-panel)); }
+.gmail-message:hover, .gmail-message.selected { background: hsl(var(--signal-panel-soft)); }
+
+.sheets-main {
+  --sheet-paper: var(--signal-bg);
+  --sheet-grid: var(--signal-panel);
+  --sheet-ink: var(--signal-ivory);
+  --sheet-muted: var(--signal-muted);
+  --sheet-line: var(--signal-line);
+  --sheet-green: var(--signal-red);
+  --sheet-green-soft: var(--signal-panel-soft);
+  --sheet-red: var(--signal-red);
+}
+.sheet-grid-shell td input, .sheet-modal input { color: hsl(var(--signal-ivory)); }
+.sheet-grid-shell thead th, .sheet-grid-shell thead th:first-child { background: hsl(var(--signal-panel-soft)); }
+.sheet-grid-shell th:first-child, .sheet-modal { background: hsl(var(--signal-panel)); }
+.sheet-stack { box-shadow: 14px 14px 0 hsl(var(--signal-panel-soft)), 28px 28px 0 hsl(var(--signal-line)); }
+
+.arxiv-main {
+  --paper-bg: var(--signal-bg);
+  --paper-card: var(--signal-panel);
+  --paper-ink: var(--signal-ivory);
+  --paper-muted: var(--signal-muted);
+  --paper-line: var(--signal-line);
+  --paper-red: var(--signal-red);
+  --paper-red-soft: 7 35% 16%;
+  --paper-blue: var(--signal-bronze);
+}
+.arxiv-search input, .arxiv-search select, .arxiv-paper-open { color: hsl(var(--signal-ivory)); }
+.arxiv-paper-list article:hover, .arxiv-paper-list article.selected { background: hsl(var(--signal-panel)); }
+.arxiv-detail.arxiv-detail--open { background: hsl(var(--signal-bg)); }
+
+.hn-main {
+  --hn-paper: var(--signal-bg);
+  --hn-sheet: var(--signal-panel);
+  --hn-ink: var(--signal-ivory);
+  --hn-muted: var(--signal-muted);
+  --hn-rule: var(--signal-line);
+  --hn-orange: var(--signal-red);
+  --hn-green: var(--signal-red);
+}
+.hn-search input { color: hsl(var(--signal-ivory)); }
+.hn-feed article:hover { background: hsl(var(--signal-panel)); }
+.hn-filters button.active, .hn-lead-actions a:first-child { color: hsl(var(--signal-ivory)); }
+
+.app-shell--youtube {
+  --room-bg: var(--signal-bg);
+  --room-panel: var(--signal-panel);
+  --room-panel-soft: var(--signal-panel-soft);
+  --room-ivory: var(--signal-ivory);
+  --room-muted: var(--signal-muted);
+  --room-line: var(--signal-line);
+  --room-red: var(--signal-red);
+  --room-red-dark: var(--signal-red-dark);
+  --room-bronze: var(--signal-bronze);
+}
+
+input::placeholder, textarea::placeholder { color: hsl(var(--signal-muted) / .74); }
+select, option { color: hsl(var(--signal-ivory)); background: hsl(var(--signal-panel)); }
+button { color: inherit; }
+
+@media (max-width: 720px) {
+  .app-shell .topbar { width: 100%; height: 62px; padding: 0 20px; }
+  .app-shell .product-nav {
+    min-width: 0;
+    max-width: calc(100vw - 72px);
+    margin-right: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .app-shell .product-nav::-webkit-scrollbar { display: none; }
+  .app-shell .product-nav a.active::after { bottom: -13px; }
+  .app-shell .topbar-meta { display: none; }
+  .app-shell > footer { width: 100%; }
+}
