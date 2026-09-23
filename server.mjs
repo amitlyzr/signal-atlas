@@ -28,6 +28,12 @@ const TOOL_IDS = {
   gmailModify: "conn_70e109d5f466__gmail__messages_modify",
   gmailTrash: "conn_70e109d5f466__gmail__messages_trash",
   gmailSend: "conn_70e109d5f466__gmail__send_email",
+  sheetsCreate: "conn_8846d1b07c8f__google_sheets__spreadsheet_create",
+  sheetsGet: "conn_8846d1b07c8f__google_sheets__values_get",
+  sheetsUpdate: "conn_8846d1b07c8f__google_sheets__values_update",
+  sheetsAppend: "conn_8846d1b07c8f__google_sheets__values_append",
+  arxivSearch: "conn_62904a4aa706__arxiv__search_papers",
+  arxivDaily: "conn_62904a4aa706__arxiv__get_daily_updates",
 };
 
 app.set("trust proxy", 1);
@@ -376,6 +382,139 @@ app.post("/api/gmail/send", async (req, res) => {
     res.json({ sent: true, id: sent?.id || null, threadId: sent?.threadId || null });
   } catch (cause) {
     res.status(502).json({ error: cause instanceof Error ? cause.message : "Could not send this email." });
+  }
+});
+
+function spreadsheetIdFrom(value = "") {
+  const input = String(value).trim();
+  const fromUrl = input.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)?.[1];
+  return (fromUrl || input).replace(/[^a-zA-Z0-9-_]/g, "").slice(0, 200);
+}
+
+function sheetsErrorMessage(cause, fallback) {
+  const message = cause instanceof Error ? cause.message : fallback;
+  return message.includes("Google Sheets API has not been used") || message.includes("SERVICE_DISABLED")
+    ? "Google Sheets API is disabled for the connected Google project. Enable the Sheets API in Google Cloud, then retry."
+    : message;
+}
+
+app.post("/api/sheets/open", async (req, res) => {
+  const spreadsheetId = spreadsheetIdFrom(req.body?.spreadsheetId);
+  const range = String(req.body?.range || "Sheet1!A1:Z50").trim().slice(0, 240);
+  if (!spreadsheetId) return res.status(400).json({ error: "Paste a Google Sheets URL or spreadsheet ID." });
+  try {
+    const data = await executeTool(TOOL_IDS.sheetsGet, {
+      path: { spreadsheetId, range },
+      query: { majorDimension: "ROWS", valueRenderOption: "FORMATTED_VALUE", dateTimeRenderOption: "FORMATTED_STRING" },
+    });
+    res.json({ spreadsheetId, range: data?.range || range, majorDimension: data?.majorDimension || "ROWS", values: Array.isArray(data?.values) ? data.values : [], url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` });
+  } catch (cause) {
+    res.status(502).json({ error: sheetsErrorMessage(cause, "Could not open this spreadsheet.") });
+  }
+});
+
+app.put("/api/sheets/values", async (req, res) => {
+  const spreadsheetId = spreadsheetIdFrom(req.body?.spreadsheetId);
+  const range = String(req.body?.range || "").trim().slice(0, 240);
+  const values = Array.isArray(req.body?.values) ? req.body.values.slice(0, 500).map((row) => Array.isArray(row) ? row.slice(0, 100) : []) : [];
+  if (!spreadsheetId || !range || !values.length) return res.status(400).json({ error: "Spreadsheet, range, and values are required." });
+  try {
+    const data = await executeTool(TOOL_IDS.sheetsUpdate, {
+      path: { spreadsheetId, range },
+      query: { valueInputOption: "USER_ENTERED", includeValuesInResponse: true, responseValueRenderOption: "FORMATTED_VALUE" },
+      body: { range, majorDimension: "ROWS", values },
+    });
+    res.json({ updated: true, data });
+  } catch (cause) {
+    res.status(502).json({ error: sheetsErrorMessage(cause, "Could not save spreadsheet values.") });
+  }
+});
+
+app.post("/api/sheets/append", async (req, res) => {
+  const spreadsheetId = spreadsheetIdFrom(req.body?.spreadsheetId);
+  const range = String(req.body?.range || "Sheet1!A:Z").trim().slice(0, 240);
+  const row = Array.isArray(req.body?.row) ? req.body.row.slice(0, 100) : [];
+  if (!spreadsheetId || !row.length) return res.status(400).json({ error: "Spreadsheet and row values are required." });
+  try {
+    const data = await executeTool(TOOL_IDS.sheetsAppend, {
+      path: { spreadsheetId, range },
+      query: { valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS", includeValuesInResponse: true },
+      body: { range, majorDimension: "ROWS", values: [row] },
+    });
+    res.status(201).json({ appended: true, data });
+  } catch (cause) {
+    res.status(502).json({ error: sheetsErrorMessage(cause, "Could not append this row.") });
+  }
+});
+
+app.post("/api/sheets/create", async (req, res) => {
+  const title = String(req.body?.title || "Untitled spreadsheet").trim().slice(0, 180) || "Untitled spreadsheet";
+  try {
+    const data = await executeTool(TOOL_IDS.sheetsCreate, {
+      body: {
+        properties: { title },
+        sheets: [{ properties: { title: "Sheet1", sheetType: "GRID", gridProperties: { rowCount: 100, columnCount: 26, frozenRowCount: 1 } } }],
+      },
+    });
+    res.status(201).json({ spreadsheetId: data?.spreadsheetId || "", title: data?.properties?.title || title, url: data?.spreadsheetUrl || (data?.spreadsheetId ? `https://docs.google.com/spreadsheets/d/${data.spreadsheetId}/edit` : ""), sheets: data?.sheets || [] });
+  } catch (cause) {
+    res.status(502).json({ error: sheetsErrorMessage(cause, "Could not create this spreadsheet.") });
+  }
+});
+
+function decodeXml(value = "") {
+  return String(value)
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function xmlTag(block, tag) {
+  return decodeXml(block.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1] || "");
+}
+
+function arxivXml(payload) {
+  if (typeof payload === "string") return payload;
+  if (typeof payload?.xml === "string") return payload.xml;
+  if (typeof payload?.data === "string") return payload.data;
+  if (typeof payload?.body === "string") return payload.body;
+  return "";
+}
+
+function parseArxiv(payload) {
+  if (Array.isArray(payload?.papers)) return payload.papers;
+  if (Array.isArray(payload?.entries)) return payload.entries;
+  const xml = arxivXml(payload);
+  const entries = xml.match(/<entry>[\s\S]*?<\/entry>/gi) || [];
+  return entries.map((entry) => {
+    const rawId = xmlTag(entry, "id");
+    const arxivId = rawId.split("/abs/").pop()?.replace(/v\d+$/, "") || rawId;
+    const authors = [...entry.matchAll(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/gi)].map((match) => decodeXml(match[1]));
+    const categories = [...entry.matchAll(/<category[^>]*term=["']([^"']+)["'][^>]*\/?\s*>/gi)].map((match) => match[1]);
+    const pdf = entry.match(/<link[^>]*href=["']([^"']+)["'][^>]*title=["']pdf["'][^>]*>/i)?.[1] || (arxivId ? `https://arxiv.org/pdf/${arxivId}.pdf` : "");
+    return { id: arxivId, title: xmlTag(entry, "title"), summary: xmlTag(entry, "summary"), published: xmlTag(entry, "published"), updated: xmlTag(entry, "updated"), authors, categories, primaryCategory: entry.match(/<arxiv:primary_category[^>]*term=["']([^"']+)["']/i)?.[1] || categories[0] || "", url: rawId || (arxivId ? `https://arxiv.org/abs/${arxivId}` : ""), pdfUrl: pdf };
+  });
+}
+
+app.get("/api/arxiv/papers", async (req, res) => {
+  const query = String(req.query.q || "").trim().slice(0, 300);
+  const category = String(req.query.category || "").trim().replace(/[^a-zA-Z0-9.-]/g, "").slice(0, 40);
+  const mode = req.query.mode === "daily" ? "daily" : "search";
+  const sort = ["relevance", "lastUpdatedDate", "submittedDate"].includes(req.query.sort) ? req.query.sort : "relevance";
+  if (mode === "search" && query.length < 2) return res.status(400).json({ error: "Enter at least two characters to search arXiv." });
+  try {
+    const payload = mode === "daily"
+      ? await executeTool(TOOL_IDS.arxivDaily, { query: { search_query: `cat:${category || "cs.AI"}`, max_results: 16, sortBy: "submittedDate", sortOrder: "descending" } })
+      : await executeTool(TOOL_IDS.arxivSearch, { query: { search_query: `${query}${category ? ` AND cat:${category}` : ""}`, max_results: 20, sortBy: sort, sortOrder: "descending", start: 0 } });
+    res.json({ query, category, mode, papers: parseArxiv(payload) });
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : "arXiv did not return papers.";
+    res.status(502).json({ error: message.includes("406 Not Acceptable") ? "The connected arXiv service is temporarily refusing catalog requests (406). Please retry shortly." : message });
   }
 });
 

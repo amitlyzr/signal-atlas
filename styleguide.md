@@ -91,3 +91,23 @@ Last updated: 2026-09-22
 - Space Grotesk carries subjects and counts; DM Sans handles bodies and metadata
 - Radius: 5–10px controls, circular sender marks, square desk panels
 - Motion: short message-list reveal and sheet transition only
+
+## Page-specific direction: Google Sheets
+
+Last updated: 2026-09-23
+
+“Ledger Field” is a precise spreadsheet workspace built from warm paper, charcoal, spreadsheet green, and pale mint. A full-width editable grid dominates the surface, with compact connection, range, save, append, and creation controls.
+
+- Layout: connection bar, then a sticky-header grid with horizontal and vertical scrolling
+- Radius: 4–8px controls; square grid and workspace panels
+- Motion: reserved for loading and modal transitions
+
+## Page-specific direction: arXiv
+
+Last updated: 2026-09-23
+
+“Paper Index” is an academic research desk using bone, oxblood, ink, and muted blue-gray. Results read like a considered bibliographic index rather than generic search cards.
+
+- Layout: compact desk-mode rail, abstract index, and generous paper-detail pane
+- Typography: Space Grotesk for paper hierarchy, DM Sans for abstracts and metadata
+- Detail pane becomes an off-canvas reading sheet on smaller screens
